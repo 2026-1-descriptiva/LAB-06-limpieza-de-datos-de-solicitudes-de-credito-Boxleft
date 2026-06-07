@@ -2,72 +2,61 @@
 Escriba el codigo que ejecute la accion solicitada en la pregunta.
 """
 
-
+import os
 import pandas as pd
 from pathlib import Path
  
  
 def pregunta_01():
+    df = pd.read_csv("files/input/solicitudes_de_credito.csv",
+                     sep=";", index_col=0, dtype={"estrato": str})
 
-    df = pd.read_csv("files/input/solicitudes_de_credito.csv", sep=";")
- 
-    # 1. Eliminar columna índice sobrante
-    df = df.drop(columns=["Unnamed: 0"])
- 
-    # 2. Eliminar filas con valores nulos
-    df = df.dropna()
- 
-    for col in ["sexo", "tipo_de_emprendimiento", "idea_negocio", "barrio"]:
-        df[col] = (
-            df[col]
-            .str.lower()
-            .str.replace("_", " ", regex=False)
-            .str.strip()
-        )
- 
-    # línea_credito sí necesita reemplazar guiones además de underscores
-    # para unificar variantes como "empresarial-ed.-", "empresarial_ed._", "empresarial ed."
-    df["línea_credito"] = (
-        df["línea_credito"]
-        .str.lower()
-        .str.replace("_", " ", regex=False)
-        .str.replace("-", " ", regex=False)
-        .str.strip()
-    )
- 
-    # 4. Limpiar monto_del_credito
+    def limpiar(serie, recortar=True):
+        s = serie.str.lower()
+        if recortar:
+            s = s.str.strip()
+        return s.str.replace(r"\s+", " ", regex=True)
+
+    for col in ["sexo", "tipo_de_emprendimiento", "idea_negocio", "línea_credito"]:
+        df[col] = limpiar(df[col])
+
+    # barrio: sin strip inicial, luego reemplazar _ y -
+    df["barrio"] = limpiar(df["barrio"], recortar=False)
+    df["barrio"] = df["barrio"].str.replace("_", " ", regex=False)
+    df["barrio"] = df["barrio"].str.replace("-", " ", regex=False)
+    df["barrio"] = limpiar(df["barrio"], recortar=False)
+    df["barrio"] = df["barrio"].str.replace(r"no\.\s*(\d+)", r"no. \1", regex=True)
+    df["barrio"] = limpiar(df["barrio"], recortar=False)
+
+    for col in ["idea_negocio", "línea_credito"]:
+        df[col] = df[col].str.replace("_", " ", regex=False)
+        df[col] = df[col].str.replace("-", " ", regex=False)
+        df[col] = limpiar(df[col])
+
+    df["estrato"] = df["estrato"].str.strip().astype(int).astype(str)
+    df = df.replace("", float("nan")).dropna()
+
     df["monto_del_credito"] = (
-        df["monto_del_credito"]
-        .str.replace(r"[\$,\s]", "", regex=True)
-        .str.replace(".00", "", regex=False)
+        df["monto_del_credito"].astype(str).str.strip()
+        .str.replace(r"[\$\s,]", "", regex=True)
+        .str.replace(r"\.00$", "", regex=True)
+        .astype(int)
     )
- 
-    # 5. Unificar formato de fecha a YYYY-MM-DD
-    df["fecha_de_beneficio"] = pd.to_datetime(
-        df["fecha_de_beneficio"], format="mixed", dayfirst=True
-    ).dt.strftime("%Y-%m-%d")
- 
-    # 6. Eliminar registros duplicados según columnas clave
-    df = df.drop_duplicates(
-        subset=[
-            "sexo",
-            "tipo_de_emprendimiento",
-            "barrio",
-            "estrato",
-            "comuna_ciudadano",
-            "fecha_de_beneficio",
-            "monto_del_credito",
-            "línea_credito",
-        ]
-    )
- 
-    # 7. Convertir tipos de datos finales
-    df["monto_del_credito"] = df["monto_del_credito"].astype(int)
+
+    # fecha: normalizar a DD/MM/YYYY
+    serie = df["fecha_de_beneficio"].astype(str).str.strip()
+    seg = serie.str.split("/", expand=True)
+    anio_inicio = seg[0].str.len() == 4
+    dia = seg[0].where(~anio_inicio, seg[2])
+    mes = seg[1]
+    anio = seg[2].where(~anio_inicio, seg[0])
+    df["fecha_de_beneficio"] = dia.str.zfill(2) + "/" + mes.str.zfill(2) + "/" + anio
+
     df["comuna_ciudadano"] = df["comuna_ciudadano"].astype(int)
- 
-    # Guardar archivo limpio
-    Path("files/output").mkdir(exist_ok=True)
-    df.to_csv("files/output/solicitudes_de_credito.csv", index=False, sep=";")
+    df = df.drop_duplicates()
+
+    os.makedirs("files/output", exist_ok=True)
+    df.to_csv("files/output/solicitudes_de_credito.csv", sep=";", index=False)
  
 
     """
