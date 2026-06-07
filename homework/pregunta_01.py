@@ -17,23 +17,25 @@ def pregunta_01():
     # 2. Eliminar filas con valores nulos
     df = df.dropna()
  
-    # 3. Normalizar columnas de texto:
-    #    - Convertir a minúsculas
-    #    - Reemplazar guiones bajos y guiones por espacios
-    #    - Eliminar espacios al inicio y al final (strip va AL FINAL
-    #      para limpiar los espacios generados por el reemplazo,
-    #      ej: "santo_domingo_savio_" → "santo domingo savio " → "santo domingo savio")
-    for col in ["sexo", "tipo_de_emprendimiento", "idea_negocio", "barrio", "línea_credito"]:
+    for col in ["sexo", "tipo_de_emprendimiento", "idea_negocio", "barrio"]:
         df[col] = (
             df[col]
             .str.lower()
             .str.replace("_", " ", regex=False)
-            .str.replace("-", " ", regex=False)
             .str.strip()
         )
  
-    # 4. Limpiar monto_del_credito: eliminar símbolos "$", comas y espacios,
-    #    y remover el sufijo ".00" de valores con formato "$1,000,000.00"
+    # línea_credito sí necesita reemplazar guiones además de underscores
+    # para unificar variantes como "empresarial-ed.-", "empresarial_ed._", "empresarial ed."
+    df["línea_credito"] = (
+        df["línea_credito"]
+        .str.lower()
+        .str.replace("_", " ", regex=False)
+        .str.replace("-", " ", regex=False)
+        .str.strip()
+    )
+ 
+    # 4. Limpiar monto_del_credito
     df["monto_del_credito"] = (
         df["monto_del_credito"]
         .str.replace(r"[\$,\s]", "", regex=True)
